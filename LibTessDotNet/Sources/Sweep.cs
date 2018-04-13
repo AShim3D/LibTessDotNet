@@ -67,6 +67,8 @@ namespace LibTessDotNet
             }
         }
 
+        private Dict<ActiveRegion>.LessOrEqual _edgeLeqDelegate;
+
         private ActiveRegion RegionBelow(ActiveRegion reg)
         {
             return reg._nodeUp._prev._key;
@@ -128,7 +130,7 @@ namespace LibTessDotNet
                 Debug.Assert(reg._eUp._winding == 0);
             }
             reg._eUp._activeRegion = null;
-            _dict.Remove(reg._nodeUp);
+            _dict.Remove(_pool, reg._nodeUp);
             _pool.Return(reg);
         }
 
@@ -188,7 +190,7 @@ namespace LibTessDotNet
             var regNew = _pool.Get<ActiveRegion>();
 
             regNew._eUp = eNewUp;
-            regNew._nodeUp = _dict.InsertBefore(regAbove._nodeUp, regNew);
+            regNew._nodeUp = _dict.InsertBefore(_pool, regAbove._nodeUp, regNew);
             regNew._fixUpperEdge = false;
             regNew._sentinel = false;
             regNew._dirty = false;
@@ -1055,7 +1057,7 @@ namespace LibTessDotNet
             reg._fixUpperEdge = false;
             reg._sentinel = true;
             reg._dirty = false;
-            reg._nodeUp = _dict.Insert(reg);
+            reg._nodeUp = _dict.Insert(_pool, reg);
         }
 
         /// <summary>
@@ -1064,7 +1066,10 @@ namespace LibTessDotNet
         /// </summary>
         private void InitEdgeDict()
         {
-            _dict = new Dict<ActiveRegion>(EdgeLeq);
+            _dict = _pool.Get<Dict<ActiveRegion>>();
+            if (_edgeLeqDelegate == null)
+                _edgeLeqDelegate = EdgeLeq;
+            _dict.SetLEQ(_edgeLeqDelegate);
 
             AddSentinel(-SentinelCoord, SentinelCoord, -SentinelCoord);
             AddSentinel(-SentinelCoord, SentinelCoord, +SentinelCoord);
@@ -1089,6 +1094,7 @@ namespace LibTessDotNet
                 DeleteRegion(reg);
             }
 
+            _pool.Return(_dict);
             _dict = null;
         }
 
@@ -1150,7 +1156,7 @@ namespace LibTessDotNet
             // Make sure there is enough space for sentinels.
             vertexCount += 8;
     
-            _pq = new PriorityQueue<MeshUtils.Vertex>(vertexCount, Geom.VertLeq);
+            _pq.Reset(vertexCount, Geom.VertLeqDelegate);
 
             vHead = _mesh._vHead;
             for( v = vHead._next; v != vHead; v = v._next ) {
@@ -1161,11 +1167,6 @@ namespace LibTessDotNet
                 }
             }
             _pq.Init();
-        }
-
-        private void DonePriorityQ()
-        {
-            _pq = null;
         }
 
         /// <summary>
@@ -1252,7 +1253,6 @@ namespace LibTessDotNet
             }
 
             DoneEdgeDict();
-            DonePriorityQ();
 
             RemoveDegenerateFaces();
             _mesh.Check();

@@ -44,6 +44,10 @@ namespace LibTessDotNet
 {
     internal static class Geom
     {
+        static Geom() {
+            VertLeqDelegate = VertLeq;
+        }
+
         public static bool IsWindingInside(WindingRule rule, int n)
         {
             switch (rule)
@@ -70,6 +74,7 @@ namespace LibTessDotNet
         {
             return lhs._s == rhs._s && lhs._t == rhs._t;
         }
+        public static PriorityHeap<MeshUtils.Vertex>.LessOrEqual VertLeqDelegate;
         public static bool VertLeq(MeshUtils.Vertex lhs, MeshUtils.Vertex rhs)
         {
             return (lhs._s < rhs._s) || (lhs._s == rhs._s && lhs._t <= rhs._t);

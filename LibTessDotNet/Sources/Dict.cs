@@ -37,9 +37,10 @@ namespace LibTessDotNet.Double
 namespace LibTessDotNet
 #endif
 {
-    internal class Dict<TValue> where TValue : class
+
+    internal class Dict<TValue> : Pooled<Dict<TValue>> where TValue : class
     {
-        public class Node
+        public class Node : Pooled<Node>
         {
             internal TValue _key;
             internal Node _prev, _next;
@@ -47,6 +48,16 @@ namespace LibTessDotNet
             public TValue Key { get { return _key; } }
             public Node Prev { get { return _prev; } }
             public Node Next { get { return _next; } }
+
+            public void Init(IPool pool)
+            {
+            }
+
+            public void Reset(IPool pool)
+            {
+                _key = null;
+                _prev = _next = null;
+            }
         }
 
         public delegate bool LessOrEqual(TValue lhs, TValue rhs);
@@ -54,27 +65,41 @@ namespace LibTessDotNet
         private LessOrEqual _leq;
         Node _head;
 
-        public Dict(LessOrEqual leq)
+        public void Init(IPool pool)
+        {
+            var n = _head = pool.Get<Node>();
+            n._prev = n._next = n;
+            n._key = null;
+        }
+
+        public void Reset(IPool pool)
+        {
+            for (Node n = _head, next = _head; n._next != null; n = next)
+            {
+                next = n._next;
+                pool.Return(n);
+            }
+            _head = null;
+        }
+
+        public void SetLEQ(LessOrEqual leq)
         {
             _leq = leq;
-
-            _head = new Node { _key = null };
-            _head._prev = _head;
-            _head._next = _head;
         }
 
-        public Node Insert(TValue key)
+        public Node Insert(IPool pool, TValue key)
         {
-            return InsertBefore(_head, key);
+            return InsertBefore(pool, _head, key);
         }
 
-        public Node InsertBefore(Node node, TValue key)
+        public Node InsertBefore(IPool pool, Node node, TValue key)
         {
             do {
                 node = node._prev;
             } while (node._key != null && !_leq(node._key, key));
 
-            var newNode = new Node { _key = key };
+            var newNode = pool.Get<Node>();
+            newNode._key = key;
             newNode._next = node._next;
             node._next._prev = newNode;
             newNode._prev = node;
@@ -97,10 +122,11 @@ namespace LibTessDotNet
             return _head._next;
         }
 
-        public void Remove(Node node)
+        public void Remove(IPool pool, Node node)
         {
             node._next._prev = node._prev;
             node._prev._next = node._next;
+            pool.Return(node);
         }
     }
 }

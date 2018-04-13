@@ -159,10 +159,6 @@ namespace LibTessDotNet
     {
         public IPool()
         {
-            Register<MeshUtils.Vertex>(new DefaultTypePool<MeshUtils.Vertex>());
-            Register<MeshUtils.Face>(new DefaultTypePool<MeshUtils.Face>());
-            Register<MeshUtils.Edge>(new DefaultTypePool<MeshUtils.Edge>());
-            Register<Tess.ActiveRegion>(new DefaultTypePool<Tess.ActiveRegion>());
         }
         public abstract void Register<T>(ITypePool typePool) where T : class, Pooled<T>, new();
         public abstract T Get<T>() where T : class, Pooled<T>, new();
@@ -189,15 +185,10 @@ namespace LibTessDotNet
 
     public class DefaultPool : IPool
     {
-        private IDictionary<Type, ITypePool> _register;
+        private IDictionary<Type, ITypePool> _register = new Dictionary<Type, ITypePool>();
 
         public override void Register<T>(ITypePool typePool)
         {
-            if (_register == null)
-            {
-                // can support multiple readers as long as it's not modified
-                _register = new Dictionary<Type, ITypePool>();
-            }
             _register[typeof(T)] = typePool;
         }
 
@@ -205,14 +196,11 @@ namespace LibTessDotNet
         {
             ITypePool typePool;
             T obj = null;
-            if (_register.TryGetValue(typeof(T), out typePool))
+            if (!_register.TryGetValue(typeof(T), out typePool))
             {
-                obj = typePool.Get() as T;
+                Register<T>(typePool = new DefaultTypePool<T>());
             }
-            if (obj == null)
-            {
-                obj = new T();
-            }
+            obj = typePool.Get() as T;
             obj.Init(this);
             return obj;
         }

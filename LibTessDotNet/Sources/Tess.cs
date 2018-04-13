@@ -91,7 +91,7 @@ namespace LibTessDotNet
         private WindingRule _windingRule;
 
         private Dict<ActiveRegion> _dict;
-        private PriorityQueue<MeshUtils.Vertex> _pq;
+        private PriorityQueue<MeshUtils.Vertex> _pq = new PriorityQueue<MeshUtils.Vertex>();
         private MeshUtils.Vertex _event;
 
         private CombineCallback _combineCallback;
@@ -114,7 +114,9 @@ namespace LibTessDotNet
         /// <summary>
         /// If true, will remove empty (zero area) polygons.
         /// </summary>
-        public bool NoEmptyPolygons = false;        /// <summary>
+        public bool NoEmptyPolygons = false;
+
+        /// <summary>
         /// OBSOLETE: use the IPool constructor to disable pooling by passing null.
         /// If true, will use pooling to reduce GC (compare performance with/without, can vary wildly).
         /// </summary>
@@ -155,27 +157,49 @@ namespace LibTessDotNet
         {
             var v = _mesh._vHead._next;
 
-            var minVal = new Real[3] { v._coords.X, v._coords.Y, v._coords.Z };
-            var minVert = new MeshUtils.Vertex[3] { v, v, v };
-            var maxVal = new Real[3] { v._coords.X, v._coords.Y, v._coords.Z };
-            var maxVert = new MeshUtils.Vertex[3] { v, v, v };
+            var minVal0 = v._coords.X;
+            var minVal1 = v._coords.Y;
+            var minVal2 = v._coords.Z;
+            var minVert0 = v;
+            var minVert1 = v;
+            var minVert2 = v;
+            var maxVal0 = v._coords.X;
+            var maxVal1 = v._coords.Y;
+            var maxVal2 = v._coords.Z;
+            var maxVert0 = v;
+            var maxVert1 = v;
+            var maxVert2 = v;
 
             for (; v != _mesh._vHead; v = v._next)
             {
-                if (v._coords.X < minVal[0]) { minVal[0] = v._coords.X; minVert[0] = v; }
-                if (v._coords.Y < minVal[1]) { minVal[1] = v._coords.Y; minVert[1] = v; }
-                if (v._coords.Z < minVal[2]) { minVal[2] = v._coords.Z; minVert[2] = v; }
-                if (v._coords.X > maxVal[0]) { maxVal[0] = v._coords.X; maxVert[0] = v; }
-                if (v._coords.Y > maxVal[1]) { maxVal[1] = v._coords.Y; maxVert[1] = v; }
-                if (v._coords.Z > maxVal[2]) { maxVal[2] = v._coords.Z; maxVert[2] = v; }
+                if (v._coords.X < minVal0) { minVal0 = v._coords.X; minVert0 = v; }
+                if (v._coords.Y < minVal1) { minVal1 = v._coords.Y; minVert1 = v; }
+                if (v._coords.Z < minVal2) { minVal2 = v._coords.Z; minVert2 = v; }
+                if (v._coords.X > maxVal0) { maxVal0 = v._coords.X; maxVert0 = v; }
+                if (v._coords.Y > maxVal1) { maxVal1 = v._coords.Y; maxVert1 = v; }
+                if (v._coords.Z > maxVal2) { maxVal2 = v._coords.Z; maxVert2 = v; }
             }
 
             // Find two vertices separated by at least 1/sqrt(3) of the maximum
             // distance between any two vertices
             int i = 0;
-            if (maxVal[1] - minVal[1] > maxVal[0] - minVal[0]) { i = 1; }
-            if (maxVal[2] - minVal[2] > maxVal[i] - minVal[i]) { i = 2; }
-            if (minVal[i] >= maxVal[i])
+            var v1 = minVert0;
+            var v2 = maxVert0;
+            var maxVal = maxVal0;
+            var minVal = minVal0;
+            if (maxVal1 - minVal1 > maxVal - minVal) {
+                v1 = minVert1;
+                v2 = maxVert0;
+                maxVal = maxVal1;
+                minVal = minVal1;
+            }
+            if (maxVal2 - minVal2 > maxVal - minVal) {
+                v1 = minVert2;
+                v2 = maxVert2;
+                maxVal = maxVal2;
+                minVal = minVal2;
+            }
+            if (minVal >= maxVal)
             {
                 // All vertices are the same -- normal doesn't matter
                 norm = new Vec3 { X = 0, Y = 0, Z = 1 };
@@ -185,8 +209,6 @@ namespace LibTessDotNet
             // Look for a third vertex which forms the triangle with maximum area
             // (Length of normal == twice the triangle area)
             Real maxLen2 = 0, tLen2;
-            var v1 = minVert[i];
-            var v2 = maxVert[i];
             Vec3 d1, d2, tNorm;
             Vec3.Sub(ref v1._coords, ref v2._coords, out d1);
             for (v = _mesh._vHead._next; v != _mesh._vHead; v = v._next)

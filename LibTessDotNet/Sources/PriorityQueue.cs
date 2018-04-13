@@ -44,57 +44,65 @@ namespace LibTessDotNet
     internal class PriorityQueue<TValue> where TValue : class
     {
         private PriorityHeap<TValue>.LessOrEqual _leq;
-        private PriorityHeap<TValue> _heap;
-        private TValue[] _keys;
-        private int[] _order;
+        private PriorityHeap<TValue> _heap = new PriorityHeap<TValue>();
+        private List<TValue> _keys = new List<TValue>();
+        private List<int> _order = new List<int>();
 
         private int _size, _max;
         private bool _initialized;
 
         public bool Empty { get { return _size == 0 && _heap.Empty; } }
 
-        public PriorityQueue(int initialSize, PriorityHeap<TValue>.LessOrEqual leq)
+        public PriorityQueue()
+        {
+        }
+
+        public void Reset(int initialSize, PriorityHeap<TValue>.LessOrEqual leq)
         {
             _leq = leq;
-            _heap = new PriorityHeap<TValue>(initialSize, leq);
+            _heap.Reset(initialSize, leq);
 
-            _keys = new TValue[initialSize];
+            if (_keys.Count < initialSize)
+                _keys.AddRange(new TValue[initialSize - _keys.Count]);
 
             _size = 0;
             _max = initialSize;
             _initialized = false;
         }
 
-        class StackItem
+        struct StackItem
         {
             internal int p, r;
-        };
-
-        static void Swap(ref int a, ref int b)
-        {
-            int tmp = a;
-            a = b;
-            b = tmp;
         }
+
+        static void Swap(ref List<int> list, ref int a, ref int b)
+        {
+            int tmp = list[a];
+            list[a] = list[b];
+            list[b] = tmp;
+        }
+
+        Stack<StackItem> _stack = new Stack<StackItem>();
 
         public void Init()
         {
-            var stack = new Stack<StackItem>();
+            _stack.Clear();
             int p, r, i, j, piv;
             uint seed = 2016473283;
 
             p = 0;
             r = _size - 1;
-            _order = new int[_size + 1];
+            if (_order.Count < _size + 1)
+                _order.AddRange(new int[_size + 1 - _order.Count]);
             for (piv = 0, i = p; i <= r; ++piv, ++i)
             {
                 _order[i] = piv;
             }
 
-            stack.Push(new StackItem { p = p, r = r });
-            while (stack.Count > 0)
+            _stack.Push(new StackItem { p = p, r = r });
+            while (_stack.Count > 0)
             {
-                var top = stack.Pop();
+                var top = _stack.Pop();
                 p = top.p;
                 r = top.r;
 
@@ -110,17 +118,17 @@ namespace LibTessDotNet
                     do {
                         do { ++i; } while (!_leq(_keys[_order[i]], _keys[piv]));
                         do { --j; } while (!_leq(_keys[piv], _keys[_order[j]]));
-                        Swap(ref _order[i], ref _order[j]);
+                        Swap(ref _order, ref i, ref j);
                     } while (i < j);
-                    Swap(ref _order[i], ref _order[j]);
+                    Swap(ref _order, ref i, ref j);
                     if (i - p < r - j)
                     {
-                        stack.Push(new StackItem { p = j + 1, r = r });
+                        _stack.Push(new StackItem { p = j + 1, r = r });
                         r = i - 1;
                     }
                     else
                     {
-                        stack.Push(new StackItem { p = p, r = i - 1 });
+                        _stack.Push(new StackItem { p = p, r = i - 1 });
                         p = j + 1;
                     }
                 }
@@ -160,7 +168,7 @@ namespace LibTessDotNet
             if (++_size >= _max)
             {
                 _max <<= 1;
-                Array.Resize(ref _keys, _max);
+                _keys.AddRange(new TValue[_max - _keys.Count]);
             }
 
             _keys[curr] = value;

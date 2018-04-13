@@ -32,6 +32,7 @@
 */
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 
 #if DOUBLE
@@ -50,27 +51,34 @@ namespace LibTessDotNet
     {
         public delegate bool LessOrEqual(TValue lhs, TValue rhs);
 
-        protected class HandleElem
+        protected struct HandleElem
         {
             internal TValue _key;
             internal int _node;
+            public void SetNode(int value) { _node = value; }
         }
 
         private LessOrEqual _leq;
-        private int[] _nodes;
-        private HandleElem[] _handles;
+        private List<int> _nodes = new List<int>();
+        private List<HandleElem> _handles = new List<HandleElem>();
         private int _size, _max;
         private int _freeList;
         private bool _initialized;
 
         public bool Empty { get { return _size == 0; } }
 
-        public PriorityHeap(int initialSize, LessOrEqual leq)
+        public PriorityHeap()
+        {
+        }
+
+        public void Reset(int initialSize, LessOrEqual leq)
         {
             _leq = leq;
 
-            _nodes = new int[initialSize + 1];
-            _handles = new HandleElem[initialSize + 1];
+            if (_nodes.Count < initialSize + 1)
+                _nodes.AddRange(new int[initialSize + 1 - _nodes.Count]);
+            if (_handles.Count < initialSize + 1)
+                _handles.AddRange(new HandleElem[initialSize + 1 - _handles.Count]);
 
             _size = 0;
             _max = initialSize;
@@ -101,12 +109,12 @@ namespace LibTessDotNet
                 if (child > _size || _leq(_handles[hCurr]._key, _handles[hChild]._key))
                 {
                     _nodes[curr] = hCurr;
-                    _handles[hCurr]._node = curr;
+                    _handles[hCurr].SetNode(curr);
                     break;
                 }
 
                 _nodes[curr] = hChild;
-                _handles[hChild]._node = curr;
+                _handles[hChild].SetNode(curr);
                 curr = child;
             }
         }
@@ -124,11 +132,11 @@ namespace LibTessDotNet
                 if (parent == 0 || _leq(_handles[hParent]._key, _handles[hCurr]._key))
                 {
                     _nodes[curr] = hCurr;
-                    _handles[hCurr]._node = curr;
+                    _handles[hCurr].SetNode(curr);
                     break;
                 }
                 _nodes[curr] = hParent;
-                _handles[hParent]._node = curr;
+                _handles[hParent].SetNode(curr);
                 curr = parent;
             }
         }
@@ -148,8 +156,8 @@ namespace LibTessDotNet
             if ((curr * 2) > _max)
             {
                 _max <<= 1;
-                Array.Resize(ref _nodes, _max + 1);
-                Array.Resize(ref _handles, _max + 1);
+                _nodes.AddRange(new int[ _max + 1 - _nodes.Count]);
+                _handles.AddRange(new HandleElem[ _max + 1 - _handles.Count]);
             }
 
             int free;
@@ -164,15 +172,7 @@ namespace LibTessDotNet
             }
 
             _nodes[curr] = free;
-            if (_handles[free] == null)
-            {
-                _handles[free] = new HandleElem { _key = value, _node = curr };
-            }
-            else
-            {
-                _handles[free]._node = curr;
-                _handles[free]._key = value;
-            }
+            _handles[free] = new HandleElem { _key = value, _node = curr };
 
             if (_initialized)
             {
@@ -193,10 +193,9 @@ namespace LibTessDotNet
             if (_size > 0)
             {
                 _nodes[1] = _nodes[_size];
-                _handles[_nodes[1]]._node = 1;
+                _handles[_nodes[1]].SetNode(1);
 
-                _handles[hMin]._key = null;
-                _handles[hMin]._node = _freeList;
+                _handles[hMin] = new HandleElem {_key = null, _node = _freeList};
                 _freeList = hMin;
 
                 if (--_size > 0)
@@ -223,7 +222,7 @@ namespace LibTessDotNet
 
             int curr = _handles[hCurr]._node;
             _nodes[curr] = _nodes[_size];
-            _handles[_nodes[curr]]._node = curr;
+            _handles[_nodes[curr]].SetNode(curr);
 
             if (curr <= --_size)
             {
@@ -237,8 +236,7 @@ namespace LibTessDotNet
                 }
             }
 
-            _handles[hCurr]._key = null;
-            _handles[hCurr]._node = _freeList;
+            _handles[hCurr] = new HandleElem {_key = null, _node = _freeList};
             _freeList = hCurr;
         }
     }
